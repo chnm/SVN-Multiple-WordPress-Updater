@@ -1,0 +1,78 @@
+wpupdate 1.6.4  by Ammon Shepherd
+
+Usage: wpupdate [OPTIONS]... [WP VERSION NUMBER]
+Switch or update the WordPress install(s) to the WP VERSION NUMBER.
+
+Example: wpupdate -buf /home/wp-versions 2.7
+This would update all of the installs listed in wp-versions to the 2.7 branch.
+
+"wpupdate -h" for help
+
+
+
+OPTIONS:
+ -b     use the branches, can not be used with -t (tags) option
+
+ -d     supply the database name to use. Use only when updating a single install
+
+ -f     path to a file containing a list of paths to WordPress installs, can
+        not be used with -i (single install) option. File must consist of full
+        paths in the form "/wwwroot/sites/mossiso.com/blog/" each on a separate
+        line. A ";" semi-colon designates a commented line.  
+
+ -h     display this help info
+
+ -i     path to  a single svn install, can not be used with -f (versions file)
+        option 
+
+ -k     skip backing up the wp-content folder and database
+
+ -n     run as a normal user, do not use sudo
+
+ -o     path to output file containing report of svn update. File will be
+        created if it does not exist. The directories must already exist. The
+        default is to save it to your home directory (ex. /home/bob/)
+
+ -p     turn off the steps to secure and protect WP. Steps include removing
+        the install.php file, adding rules to the htaccess file to protect
+        the wp-config.php file, the .svn directories, and the wp-content/uploads 
+        directory. These steps are done by default.
+
+ -v     outputs version information and exits
+
+ -r     output the default SVN repo used and exit
+
+ -s     svn URL to use for updates (defaults to http://core.svn.wordpress.org/)
+
+ -u     use "svn update", can not be used with -w (switch) option
+
+ -w     use "svn switch", can not be used with -u (update) option 
+
+ -t     use the tags, can not be used with -b (branches) option
+
+ -x     skip fixing permissions and owners
+
+
+WHAT IT DOES:
+    First the wpupudate program makes a backup copy of the MySQL database and
+    the wp-contents/ directory. It places these backups in the WP install
+    directory.
+    
+    A WordPress version must be specified. By default the WordPress installs
+    are upgraded to the specified branch install. If the -t (tags) option is
+    used, the installs will be updated to the specified tag version. If the -w
+    (switch) option is used, then the installs are switched to the branch (by
+    default) or tag (with -t option) version specified.
+
+THINGS TO KNOW:
+    By default the program runs as sudo. To run as normal user, pass the -n
+    flag.  This user must have absolute privileges over all files in the
+    WordPress folders.
+
+    If the -f or -i flags are not given on the command line, the program will
+    attempt to update the current directory.
+
+    You will be prompted for a MySQL user and pass that must have access to all
+    of the databases (ex. MySQL root or admin account). Unless the -n flag is
+    passed you will be prompted for your user password to enable sudo.  
+

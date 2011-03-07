@@ -1,0 +1,673 @@
+#!/bin/bash
+
+#------------------------------------------------------------------------------#
+#   Dynamically switch to newest version of Wordpress using SVN                #
+#                                                                              #
+#                                                                              #
+#   @Author: Ammon Shepherd                                                    #
+#   @Date:   01.18.11                                                          #
+    VERSION="1.6.4"                                                              
+#------------------------------------------------------------------------------#
+
+#ToDo: 
+# - integrate wpversions into this script, perhaps.
+# - Implement the steps to strengthen/protect WP installs
+
+
+#------------------------------------------------------------------------------#
+#                           Change log
+#
+# v0.7      09.04.07 - Fixed some minor text by adding ellipses at the end of
+#                       text. Added a constant for where to save the svn
+#                       reports.  
+#
+# v0.8      01.03.08 - Figured out the HELPTEXT variable stuff and updated the
+#                       text.  
+#                    - Moved the code that asks for the file location and
+#                       creates the array to be within the if...else... logic
+#                       so --help works, and if no version is given, the help
+#                       text is displayed.  
+#
+# v0.9      02.26.08 - Added ability to have comments in the FILENAME file.
+#                       Commented lines begin with a semi-colon ";". Edited the
+#                       HELPTEXT.  
+#
+# v1.0      03.31.08 - Changed the way permissions are done. Only files/folders
+#                       starting  with "wp-" should be altered. Added a "/" in
+#                       the "Don't forget to run..." line.  Changed the prompt
+#                       asking for the file containing svn installs. Allows for
+#                       a default location hard coded into the program with the
+#                       FILENAME variable.  
+# v1.1      04.29.08 - Changed the
+#                       line for option 'd' in the first prompt to use the
+#                       FILENAME variable.
+#
+# v1.2      07.18.08 - Script will now run the DB upgrade.php script using
+#                       curl. Pulls the info from the database for that
+#                       install. 
+#
+# v1.3      07.30.08 - Added a line that prints out any svn errors. And made a
+#                       check to see if the url variable has a value. Don't run
+#                       curl unless it does.
+#
+# v1.4      12.01.08 - Changed default behavior to use the svn branches instead
+#                       of tags 
+#
+# v1.5      12.11.08 - Converted script to use command line flags (options)
+#                       
+# v1.5.1    01.27.09 - Fixed the ability to use -i, just a directory, and 
+#                       changed default behavior to update current directory if
+#                       no -f or -i flag given.
+# v1.5.2    03.19.09 - Added check for the size of wp-content. If larger than
+#                       100MB, it won't backup the directory.
+#                    - Changed the sed call to get the table prefix to check for
+#                       single ( ' ) and double ( " ) quotes. There were two
+#                       variables checking for this, so changed code to use the
+#                       first one only.
+#                    - Removed the comment out section about old way to ask for
+#                       files.
+#                    - Fixed conditional statement checking for value in url
+#                       variable. Also made a check to only run the update
+#                       script if the url variable starts with 'http', otherwise
+#                       it just reminds you to run it.
+# v1.5.3    06.25.09 - fixed the way to get the tb_prefix variable. If the
+#                       wp-config.php file was created before version 2.1 of WP
+#                       then the script did not get the table prefix corrrectly.
+#                    - updated a few script prompts
+# v1.5.4    07.14.09 - store svn reports in a wpupdate-reports folder. Checks if
+#                       exists. If not then creates it as a subdirectory of 
+#                       REPORTSPATH.
+# v1.5.5    01.07.10 - add an option to skip the fixing of permissions and owner
+#                       and an option to not use sudo
+# v1.5.5    03.09.10 - changed the SVN repository to the new URL
+#                    - Added the set commands to end the script correctly if an
+#                       unset variable is found or a statement returns non-true.
+# v1.6      07.23.10 - Added check for SVN repository. If the current repository
+#                       is not the same as the default, prompt user for which
+#                       repo to use.
+#                    - Changed script to use the owner of the wp-content folder
+#                       instead of the .svn folder. All permissions changes use
+#                       the owner of the wp-content folder instead of the .svn 
+#                       folder
+#                    - Added a few checks for using sudo and running command in
+#                       in non-sudo if that option is used.
+#                    - Added some comments into the script
+#                    - Added some color to the output.
+#                    - Added an option that just outputs the default repo used
+#                    - Added a check for the 'home' field in the WP database, 
+#                       and to use the 'siteurl' field instead if the 'home' is
+#                       empty. This is the URL to use for updating the database
+#                       after upgrading.
+# v1.6.1             - Added option to skip the backups
+# v1.6.2    12.01.10 - Fixed an issue with unbound variable for homeurl when not
+#                       found in database. 
+# v1.6.3    12.03.10 - Added the -d flag to supply the database name when the 
+#                       command is run. Works best if used when updating a
+#                       single WP install.
+# v1.6.4    01.18.11 - Add steps to secure WordPress, and switch to turn off.
+#------------------------------------------------------------------------------#
+
+set -e # End the script if any statement returns a non-true return value
+set -u # End script if an unset variable is encountered.
+
+# Set colors for echo
+black='\E[30;40m'
+red='\E[1;31;40m'
+green='\E[32;40m'
+yellow='\E[33;40m'
+blue='\E[1;34;40m'
+magenta='\E[35;40m'
+cyan='\E[36;40m'
+white='\E[1;37;40m'
+reset=`tput sgr0`
+
+# Constants
+CURDATE="svnreport-`date +%F`"
+# http://codex.WordPress.org/Installing/Updating_WordPress_with_Subversion
+OLDBASE="http://svn.automattic.com/wordpress"
+SVNBASE="http://core.svn.wordpress.org"
+TMPFILE=`mktemp` || exit 1
+
+
+USAGE='
+Usage: wpupdate [OPTIONS]... [VERSION NUMBER]
+Switch or update the WordPress install(s) to the VERSION NUMBER.
+
+Example: wpupdate -f /home/wp-versions -u -b 2.7
+This would update all of the installs listed in wp-versions to the 2.7 branch.
+
+"wpupdate -h" for help
+'
+
+HELPTEXT='wpupdate '$VERSION' by Ammon Shepherd
+
+'$USAGE'
+
+OPTIONS:
+ -b     use the branches, can not be used with -t (tags) option
+
+ -d     supply the database name to use. Use only when updating a single install
+
+ -f     path to a file containing a list of paths to WordPress installs, can
+        not be used with -i (single install) option. File must consist of full
+        paths in the form "/wwwroot/sites/mossiso.com/blog/" each on a separate
+        line. A ";" semi-colon designates a commented line.  
+
+ -h     display this help info
+
+ -i     path to  a single svn install, can not be used with -f (versions file)
+        option 
+
+ -k     skip backing up the wp-content folder and database
+
+ -n     run as a normal user, do not use sudo
+
+ -o     path to output file containing report of svn update. File will be
+        created if it does not exist. The directories must already exist. The
+        default is to save it to your home directory (ex. '$HOME')
+
+ -p     turn off the steps to secure and protect WP. Steps include removing
+        the install.php file, adding rules to the htaccess file to protect
+        the wp-config.php file, the .svn directories, and the wp-content/uploads 
+        directory. These steps are done by default.
+
+ -v     outputs version information and exits
+
+ -r     output the default SVN repo used and exit
+
+ -s     svn URL to use for updates (defaults to '$SVNBASE')
+
+ -u     use "svn update", can not be used with -w (switch) option
+
+ -w     use "svn switch", can not be used with -u (update) option 
+
+ -t     use the tags, can not be used with -b (branches) option
+
+ -x     skip fixing permissions and owners
+
+
+WHAT IT DOES:
+    First the wpupudate program makes a backup copy of the MySQL database and
+    the wp-contents/ directory. It places these backups in the WP install
+    directory.
+    
+    A WordPress version must be specified. By default the WordPress installs
+    are upgraded to the specified branch install. If the -t (tags) option is
+    used, the installs will be updated to the specified tag version. If the -w
+    (switch) option is used, then the installs are switched to the branch (by
+    default) or tag (with -t option) version specified.
+
+THINGS TO KNOW:
+    By default the program runs as sudo. To run as normal user, pass the -n
+    flag.  This user must have absolute privileges over all files in the
+    WordPress folders.
+
+    If the -f or -i flags are not given on the command line, the program will
+    attempt to update the current directory.
+
+    You will be prompted for a MySQL user and pass that must have access to all
+    of the databases (ex. MySQL root or admin account). Unless the -n flag is
+    passed you will be prompted for your user password to enable sudo.  
+'
+
+
+# Set variables of unused options
+BRANCH=''
+DBNAME=''
+FILENAME=''
+SINGLE=''
+NOBACKUP=''
+NOSUDO=''
+REPORTPATH=''
+NEWURL=''
+TAGS=''
+SVNOPT=''
+SKIPFIX=''
+
+
+# Get the options
+while getopts "bd:f:hi:kno:rs:tuvwx" options; do
+    case $options in
+        b ) BRANCH="branches";;
+        d ) DBNAME="$OPTARG";;
+        f ) FILENAME="$OPTARG";;
+        h ) echo "$HELPTEXT"
+            exit 0;;
+        i ) SINGLE="$OPTARG";;
+        k ) NOBACKUP='true';;
+        n ) NOSUDO='true';;
+        o ) REPORTPATH="$OPTARG";;
+        r ) echo "$SVNBASE"
+            exit 0;;
+        s ) NEWURL="$OPTARG";;
+        t ) TAGS="tags";;
+        u ) SVNOPT="update";;
+        v ) echo "wpupdate $VERSION"
+            exit 0;;
+        w ) SVNOPT="switch";;
+        x ) SKIPFIX='true';;
+        \? ) echo "$USAGE"
+             exit 1;;
+        * ) echo "$USAGE"
+            exit 1;;
+    esac
+done
+shift `expr $OPTIND - 1`
+
+# If no options are specified, spit out the help text, have to have a version
+if [ $# -eq 0 ]; then
+    echo "$USAGE"
+    exit
+fi
+
+
+if [ -z $1 ]; then
+    echo "$USAGE"
+    echo
+    exit 0;
+elif [ -n $1 ]; then
+    # Get the array containing the full paths to the Wordpress installs to update from a file.
+    # tip from http://www.linuxquestions.org/questions/showthread.php?p=2867155#post2867155
+
+    exec 6<&0
+
+    if [[ -n $FILENAME && -z $SINGLE ]]; then
+        if [ -f $FILENAME ]; then
+            exec < $FILENAME
+        else
+            exec 0<&6 6<&-
+            echo "ERROR: [-f] Must be a file."
+            echo "$USAGE"
+            exit 1
+        fi
+    elif [[ -z $FILENAME && -n $SINGLE ]]; then
+        if [ -d $SINGLE ]; then
+            echo $SINGLE > $TMPFILE
+            exec < $TMPFILE
+        else
+            exec 0<&6 6<&-
+            echo "ERROR: [-i] Must be a directory."
+            echo "$USAGE"
+            exit 1
+        fi
+    elif [[ -n $FILENAME && -n $SINGLE ]]; then
+        # If the f and i flags are both set, show help and quit. Can't have both
+        exec 0<&6 6<&-
+        echo "$HELPTEXT"
+        exit 1
+    else
+        # If no f or i flag, then assume updating only the current directory.
+        # Previous behavior was to prompt for file containing list or update 
+        # the current directory.
+        pwd > $TMPFILE
+        if [[ -d .svn && -f wp-config.php ]]; then
+            exec < $TMPFILE
+        else
+            echo "Current directory is not an svn WordPress install."
+            exit 1
+        fi
+    fi
+
+    # Initialize the variable for the array index counter
+    CNT=''
+    while read line
+    do
+        # Check if line is commented, if not add to the array
+        comment=";"
+        case $line in
+            *"$comment"*)
+                ;;
+            *)
+                (( CNT++ ))
+                filearray[$CNT]=$line
+                ;;
+        esac
+    done
+
+    exec 0<&6 6<&-
+
+    # Get the MySQL user/pass but don't show it on the CLI
+    echo -n "Enter a MySQL user with access to all databases: "
+    read -s sqluser
+    echo
+    echo -n "Enter the MySQL pass: "
+    read -s sqlpass
+    echo
+
+
+    # Loop through all of the paths from the file, or the current dir
+    for path in ${filearray[@]}
+    do
+
+        # Check to make sure the path is actually a directory
+        if [[ ! -d $path ]]; then
+            echo -e "$red $path does not exist. $reset"
+            continue
+        fi
+
+        cd $path
+
+        # Check to see if it's an .svn install
+        if [[ ! -d .svn && ! -f wp-config.php ]]; then
+            echo -e "$red $path is not an svn install of WordPress. $reset"
+            continue
+        fi
+
+        echo
+        echo "---------------------------------------------"
+        echo -e "Updating $green $path $reset"
+        echo
+
+        ################################################################
+        #                                                              #
+        #                       SETUP VARIABLES                        #
+        #                                                              #
+        ################################################################
+#:<<'COMMENT5'
+
+        # Get rid of trailing slash if there.
+        path=${path%/}
+
+        #Get the base folder name of the install - the name of the website.
+        sitename=`pwd | sed -r -e "s/\//-/g"`
+
+        # Get the owner of the wp-content folder
+        siteowner=`ls -lad wp-content | cut -f3 -d" "`
+
+        # Get information from the wp-config.php file in order to make
+        #   a backup copy 
+            # Get the database name
+            # If the 'd' flag was used, set that value as the database name
+        if [[ -z "${DBNAME-}" ]]; then
+            db_name=`grep "DB_NAME" wp-config.php | sed -r -e "s/^[^']+'.*', '([^']+)'.*/\1/"`
+        else
+            db_name=$DBNAME
+        fi
+
+            # Get the table prefix
+        tb_prefix=`grep "table_prefix" wp-config.php | cut -d";" -f1 | cut -d"=" -f2 | sed -e "s|'||g" -e 's|"||g' -e "s|;||g" -e "s| ||g"`
+            # Get a list of the tables
+        table_list=`mysql -u$sqluser -p$sqlpass $db_name --raw --silent --silent --execute="SHOW TABLES;"`
+
+
+#COMMENT5
+
+        ################################################################
+        #                                                              #
+        #                       MAKE BACKUPS                           #
+        #                                                              #
+        ################################################################
+#:<<'COMMENT4'
+        if [[ 'true' == $NOBACKUP ]]; then
+            echo "Skipping backup"
+
+        else
+
+            #     Make a backup of the wp-content folder and the MySQL DB  
+            echo "Creating backup of MySQL database..."
+            # Clear the tables value
+            tables="" 
+            for tablename in ${table_list[@]}
+            do
+                # If the table has the correct prefix, add it to the tables array
+                if [[ "$tablename" =~ $tb_prefix ]]; then
+                    tables+="$tablename "
+                fi
+            done
+            # Use mysqldump to make an sql file of the correct tables
+            if [[ 'true' == $NOSUDO ]]; then
+                mysqldump -u$sqluser -p$sqlpass --opt $db_name $tables > $path/.${db_name}_${tb_prefix}BACKUP.sql
+            else
+                sudo su - $siteowner -c "mysqldump -u $sqluser -p$sqlpass --opt $db_name $tables > $path/.${db_name}_${tb_prefix}BACKUP.sql"
+            fi
+
+            # Check the size of the wp-content directory. If it is over 100MB
+            #   then do not make a copy.
+            dirSize=( $(du -s 'wp-content' ) )
+            if (( 100000 <= $dirSize )); then
+                size=( $(du -hs 'wp-content' ))
+                echo "Directory 'wp-content' is too large ($size). Not making backup."
+            else
+                echo "Creating backup of 'wp-content'..."
+                # Delete the old backup copy of wp-content if it exists
+                if [ -d .wp-content-backup ]; then
+                    if [[ 'true' == $NOSUDO ]]; then
+                        rm -rf .wp-content-backup
+                    else
+                        sudo rm -rf .wp-content-backup
+                    fi
+                fi
+                # Make the backup copy of the wp-content folder
+                if [[ 'true' == $NOSUDO ]]; then
+                    cp -a $path/wp-content/ $path/.wp-content-backup
+                else
+                    sudo cp -a $path/wp-content/ $path/.wp-content-backup
+                fi
+            fi
+        fi # end of backing up 
+#COMMENT4
+
+        ################################################################
+        #                                                              #
+        #                   REPOSITORY CHECK                           #
+        #                                                              #
+        ################################################################
+#:<<'COMMENT3'
+        # Check if it's the right repository, if not prompt to use
+        #   current or to switch to the default
+            # Get the current repository used
+        currentrepo=`svn info | grep "Repository Root" | cut -d' ' -f3`
+
+            # Check it against the default repo
+        if [ $currentrepo != $SVNBASE ]; then
+            # Prompt of which repo to use
+            echo
+            echo -e "Current repository is '$currentrepo' while the default repository is '$SVNBASE'. \n\n\tWhich repo would you like to use? \n\t[1] = $currentrepo \n\t[2] = $SVNBASE (default)"
+            echo -n "(Type a number or <ENTER> to use the default.) : "
+            read repochoice
+
+            # Set the 'userepo' variable to the chosen value
+            if [[ '1' == $repochoice ]]; then
+                userepo=$currentrepo
+            else
+                userepo=$SVNBASE
+                echo "Relocating svn installation to $userepo..."
+                if [[ 'true' == $NOSUDO ]]; then
+                    svn switch --relocate $currentrepo $userepo
+                else
+                    sudo svn switch --relocate $currentrepo $userepo
+                fi
+            fi
+        # Set to the default
+        else
+            userepo=$SVNBASE
+        fi
+#COMMENT3
+
+        ################################################################
+        #                                                              #
+        #                         RUN SVN                              #
+        #                                                              #
+        ################################################################
+#:<<'COMMENT2'
+        # Set whether it's an update or a switch. Use update by default
+        #   (if option was not given).
+        if [ -z $SVNOPT ]; then
+            switch="update"
+        else
+            switch="$SVNOPT"
+        fi
+
+        # Set it to a branch or tag. Default is to use branches
+            # If branches is selected and tags is not, then set to branches
+        if [[ -n $BRANCH && -z $TAGS ]]; then
+            kind="$BRANCH"
+
+            # If branches is not selected and tags is, then set to tags
+        elif [[ -z $BRANCH && -n $TAGS ]]; then
+            kind="$TAGS"
+
+            # If both branches and tags are selected, then prompt user
+            #   for which they wanted to use.
+        elif [[ -n $BRANCH && -n $TAGS ]]; then
+            echo "You can only use 'branches' or 'tags', not both. Type 'b' for branches, 't' for tags: "
+            read what_kind
+            if [ $what_kind == "t" ]; then
+                kind="tags"
+            else
+                kind="branches"
+            fi
+        else
+            kind="branches"
+        fi
+
+        # Set the SVN URL to the user supplied or default svn URL and
+        #   add the branch or tag
+        if [ -z $NEWURL ]; then
+            SVNURL="$userepo/$kind"
+        else
+            # Get rid of trailing slash if there.
+            NEWURL=${NEWURL%/}
+            SVNURL="$NEWURL/$kind"
+        fi
+
+        # If the option to create the svn reports is not set, then use
+        #   the user's home directory.
+        if [ -z $REPORTPATH ]; then
+            REPORTPATH=$HOME
+        fi
+        if [ ! -d $REPORTPATH/wpupdate-reports ]; then
+            # Make a folder to hold the reports.
+            mkdir $REPORTPATH/wpupdate-reports
+        fi
+
+        echo
+        echo -e "${yellow}Running svn ${reset}on $path ..."
+
+        # Set the variable for the path and name of the report file
+        SVNREPORTFILE="$REPORTPATH/wpupdate-reports/$CURDATE$sitename"
+        echo -e "Saving output to $white $SVNREPORTFILE $reset..."
+
+        # Open a file descriptor to put all svn output to a file.
+        exec 7>&1
+        exec > $SVNREPORTFILE
+        if [[ 'true' == $NOSUDO ]]; then
+            svn $switch $SVNURL/$1/ $path/
+        else
+            sudo svn $switch $SVNURL/$1/ $path/
+        fi
+        exec 1>&7 7>&-
+
+        # spit out any svn conflicts
+        if [[ `grep "C " $SVNREPORTFILE` ]]; then
+            svnconflicts=`grep "C " $SVNREPORTFILE` 
+            echo -e "SVN had the following errors: \n $red $svnconflicts $reset"
+        fi
+#COMMENT2
+
+        ################################################################
+        #                                                              #
+        #                      FIX PERMISSIONS                         #
+        #                                                              #
+        ################################################################
+#:<<'COMMENT1'
+        # Fix the permissions and set the owner for all WP files. Don't
+        #   mess with the group in case it is something special (as in
+        #   a different group for some wp-content folders to allow
+        #   apache to write to them).
+        if [[ 'true' == $SKIPFIX ]]; then
+            echo "Skipping permissions fixing..."
+        else
+            echo "Fixing permissions ..."
+            if [[ 'true' == $NOSUDO ]]; then
+                find $path -iname "*wp-*" -exec chown -R $siteowner '{}' \;
+                find $path -iname ".htaccess" -exec chown $siteowner '{}' \;
+                find $path -iname "*.sql" -exec chown $siteowner '{}' \;
+                find $path -iname "license.txt" -exec chown $siteowner '{}' \;
+                find $path -iname "index.php" -exec chown $siteowner '{}' \;
+                find $path -iname "readme.html" -exec chown $siteowner '{}' \;
+                find $path -iname "xmlrpc.php" -exec chown $siteowner '{}' \;
+                find $path -type d -iname "*wp-*" -exec chmod ug=rwx,g+s,o=rx '{}' \;
+                find $path -type f -iname "*wp-*" -exec chmod 664 '{}' \;
+            else
+                sudo find $path -iname "*wp-*" -exec chown -R $siteowner '{}' \;
+                sudo find $path -iname ".htaccess" -exec chown $siteowner '{}' \;
+                sudo find $path -iname "*.sql" -exec chown $siteowner '{}' \;
+                sudo find $path -iname "license.txt" -exec chown $siteowner '{}' \;
+                sudo find $path -iname "index.php" -exec chown $siteowner '{}' \;
+                sudo find $path -iname "readme.html" -exec chown $siteowner '{}' \;
+                sudo find $path -iname "xmlrpc.php" -exec chown $siteowner '{}' \;
+                sudo find $path -type d -iname "*wp-*" -exec chmod ug=rwx,g+s,o=rx '{}' \;
+                sudo find $path -type f -iname "*wp-*" -exec chmod 664 '{}' \;
+            fi
+        fi
+
+#COMMENT1
+
+        ################################################################
+        #                                                              #
+        #                   UPGRADE MYSQL DATABASE                     #
+        #                                                              #
+        ################################################################
+###:<<COMMENT0
+        # Run the web based upgrade script using curl
+        echo
+            # get the url of the site, unset variable first.
+        url=''
+        url=( $(mysql -u$sqluser -p$sqlpass $db_name --raw --silent --silent --execute="SELECT option_value FROM ${tb_prefix}options WHERE option_name='siteurl' LIMIT 1") )
+            # Set the home to be the same as the url, in case it isn't in the database.
+        homeurl=( $(mysql -u$sqluser -p$sqlpass $db_name --raw --silent --silent --execute="SELECT option_value FROM ${tb_prefix}options WHERE option_name='home' LIMIT 1") )
+        if [[ -z "${homeurl-}" ]]; then
+            homeurl=$url
+        fi
+
+        # Test if the url variable has a value
+            # Grab the first four characters, and if they are 'http'
+            #   then there is a value there.
+        urlCheck=( ${url:0:4} )
+        if [[ 'http' == $urlCheck ]]; then
+            echo -e "Running DB update on $blue $homeurl $reset"
+            curl -o /dev/null "$url/wp-admin/upgrade.php?step=1&backto="
+        else
+            echo -e "Remember to run the upgrade script for $red $homeurl $reset!!"
+        fi
+        echo 
+
+        # remove the tempfile when updating the current directory
+        if [ -f $TMPFILE ]; then
+            if [[ 'true' == $NOSUDO ]]; then
+                rm -f $TMPFILE
+            else
+                sudo rm -f $TMPFILE
+            fi
+            echo
+        fi
+#COMMENT0
+        ################################################################
+        #                                                              #
+        #                    Secure WP install                         #
+        #                                                              #
+        ################################################################
+###:<<COMMENT01
+        # Remove the install.php file
+        if [ -f $path/wp-admin/install.php ]; then
+            if [[ 'true' == $NOSUDO ]]; then
+                rm -f $path/wp-admin/install.php
+            else
+                sudo rm -f $path/wp-admin/install.php
+            fi
+        fi
+
+        # Check .htaccess file and if protecting wp-config.php, .svn and wp-content/uploads
+
+#COMMENT01
+
+    done
+
+else
+    echo "$HELPTEXT"
+    echo 
+    exit 0
+fi
+
+exit 0
