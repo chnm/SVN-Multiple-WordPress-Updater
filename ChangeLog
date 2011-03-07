@@ -1,0 +1,90 @@
+                           Change log
+
+ v0.7      09.04.07 - Fixed some minor text by adding ellipses at the end of
+                       text. Added a constant for where to save the svn
+                       reports.  
+
+ v0.8      01.03.08 - Figured out the HELPTEXT variable stuff and updated the
+                       text.  
+                    - Moved the code that asks for the file location and
+                       creates the array to be within the if...else... logic
+                       so --help works, and if no version is given, the help
+                       text is displayed.  
+
+ v0.9      02.26.08 - Added ability to have comments in the FILENAME file.
+                       Commented lines begin with a semi-colon ";". Edited the
+                       HELPTEXT.  
+
+ v1.0      03.31.08 - Changed the way permissions are done. Only files/folders
+                       starting  with "wp-" should be altered. Added a "/" in
+                       the "Don't forget to run..." line.  Changed the prompt
+                       asking for the file containing svn installs. Allows for
+                       a default location hard coded into the program with the
+                       FILENAME variable.  
+ v1.1      04.29.08 - Changed the
+                       line for option 'd' in the first prompt to use the
+                       FILENAME variable.
+
+ v1.2      07.18.08 - Script will now run the DB upgrade.php script using
+                       curl. Pulls the info from the database for that
+                       install. 
+
+ v1.3      07.30.08 - Added a line that prints out any svn errors. And made a
+                       check to see if the url variable has a value. Don't run
+                       curl unless it does.
+
+ v1.4      12.01.08 - Changed default behavior to use the svn branches instead
+                       of tags 
+
+ v1.5      12.11.08 - Converted script to use command line flags (options)
+                       
+ v1.5.1    01.27.09 - Fixed the ability to use -i, just a directory, and 
+                       changed default behavior to update current directory if
+                       no -f or -i flag given.
+ v1.5.2    03.19.09 - Added check for the size of wp-content. If larger than
+                       100MB, it won't backup the directory.
+                    - Changed the sed call to get the table prefix to check for
+                       single ( ' ) and double ( " ) quotes. There were two
+                       variables checking for this, so changed code to use the
+                       first one only.
+                    - Removed the comment out section about old way to ask for
+                       files.
+                    - Fixed conditional statement checking for value in url
+                       variable. Also made a check to only run the update
+                       script if the url variable starts with 'http', otherwise
+                       it just reminds you to run it.
+ v1.5.3    06.25.09 - fixed the way to get the tb_prefix variable. If the
+                       wp-config.php file was created before version 2.1 of WP
+                       then the script did not get the table prefix corrrectly.
+                    - updated a few script prompts
+ v1.5.4    07.14.09 - store svn reports in a wpupdate-reports folder. Checks if
+                       exists. If not then creates it as a subdirectory of 
+                       REPORTSPATH.
+ v1.5.5    01.07.10 - add an option to skip the fixing of permissions and owner
+                       and an option to not use sudo
+ v1.5.5    03.09.10 - changed the SVN repository to the new URL
+                    - Added the set commands to end the script correctly if an
+                       unset variable is found or a statement returns non-true.
+ v1.6      07.23.10 - Added check for SVN repository. If the current repository
+                       is not the same as the default, prompt user for which
+                       repo to use.
+                    - Changed script to use the owner of the wp-content folder
+                       instead of the .svn folder. All permissions changes use
+                       the owner of the wp-content folder instead of the .svn 
+                       folder
+                    - Added a few checks for using sudo and running command in
+                       in non-sudo if that option is used.
+                    - Added some comments into the script
+                    - Added some color to the output.
+                    - Added an option that just outputs the default repo used
+                    - Added a check for the 'home' field in the WP database, 
+                       and to use the 'siteurl' field instead if the 'home' is
+                       empty. This is the URL to use for updating the database
+                       after upgrading.
+ v1.6.1             - Added option to skip the backups
+ v1.6.2    12.01.10 - Fixed an issue with unbound variable for homeurl when not
+                       found in database. 
+ v1.6.3    12.03.10 - Added the -d flag to supply the database name when the 
+                       command is run. Works best if used when updating a
+                       single WP install.
+ v1.6.4    01.18.11 - Add steps to secure WordPress, and switch to turn off.
