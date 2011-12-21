@@ -5,8 +5,8 @@
 #                                                                              #
 #                                                                              #
 #   @Author: Ammon Shepherd                                                    #
-#   @Date:   01.18.11                                                          #
-    VERSION="1.6.4"                                                              
+#   @Date:   12.21.11                                                          #
+    VERSION="1.6.6"                                                            #  
 #------------------------------------------------------------------------------#
 
 #ToDo: 
@@ -15,96 +15,9 @@
 
 
 #------------------------------------------------------------------------------#
-#                           Change log
-#
-# v0.7      09.04.07 - Fixed some minor text by adding ellipses at the end of
-#                       text. Added a constant for where to save the svn
-#                       reports.  
-#
-# v0.8      01.03.08 - Figured out the HELPTEXT variable stuff and updated the
-#                       text.  
-#                    - Moved the code that asks for the file location and
-#                       creates the array to be within the if...else... logic
-#                       so --help works, and if no version is given, the help
-#                       text is displayed.  
-#
-# v0.9      02.26.08 - Added ability to have comments in the FILENAME file.
-#                       Commented lines begin with a semi-colon ";". Edited the
-#                       HELPTEXT.  
-#
-# v1.0      03.31.08 - Changed the way permissions are done. Only files/folders
-#                       starting  with "wp-" should be altered. Added a "/" in
-#                       the "Don't forget to run..." line.  Changed the prompt
-#                       asking for the file containing svn installs. Allows for
-#                       a default location hard coded into the program with the
-#                       FILENAME variable.  
-# v1.1      04.29.08 - Changed the
-#                       line for option 'd' in the first prompt to use the
-#                       FILENAME variable.
-#
-# v1.2      07.18.08 - Script will now run the DB upgrade.php script using
-#                       curl. Pulls the info from the database for that
-#                       install. 
-#
-# v1.3      07.30.08 - Added a line that prints out any svn errors. And made a
-#                       check to see if the url variable has a value. Don't run
-#                       curl unless it does.
-#
-# v1.4      12.01.08 - Changed default behavior to use the svn branches instead
-#                       of tags 
-#
-# v1.5      12.11.08 - Converted script to use command line flags (options)
-#                       
-# v1.5.1    01.27.09 - Fixed the ability to use -i, just a directory, and 
-#                       changed default behavior to update current directory if
-#                       no -f or -i flag given.
-# v1.5.2    03.19.09 - Added check for the size of wp-content. If larger than
-#                       100MB, it won't backup the directory.
-#                    - Changed the sed call to get the table prefix to check for
-#                       single ( ' ) and double ( " ) quotes. There were two
-#                       variables checking for this, so changed code to use the
-#                       first one only.
-#                    - Removed the comment out section about old way to ask for
-#                       files.
-#                    - Fixed conditional statement checking for value in url
-#                       variable. Also made a check to only run the update
-#                       script if the url variable starts with 'http', otherwise
-#                       it just reminds you to run it.
-# v1.5.3    06.25.09 - fixed the way to get the tb_prefix variable. If the
-#                       wp-config.php file was created before version 2.1 of WP
-#                       then the script did not get the table prefix corrrectly.
-#                    - updated a few script prompts
-# v1.5.4    07.14.09 - store svn reports in a wpupdate-reports folder. Checks if
-#                       exists. If not then creates it as a subdirectory of 
-#                       REPORTSPATH.
-# v1.5.5    01.07.10 - add an option to skip the fixing of permissions and owner
-#                       and an option to not use sudo
-# v1.5.5    03.09.10 - changed the SVN repository to the new URL
-#                    - Added the set commands to end the script correctly if an
-#                       unset variable is found or a statement returns non-true.
-# v1.6      07.23.10 - Added check for SVN repository. If the current repository
-#                       is not the same as the default, prompt user for which
-#                       repo to use.
-#                    - Changed script to use the owner of the wp-content folder
-#                       instead of the .svn folder. All permissions changes use
-#                       the owner of the wp-content folder instead of the .svn 
-#                       folder
-#                    - Added a few checks for using sudo and running command in
-#                       in non-sudo if that option is used.
-#                    - Added some comments into the script
-#                    - Added some color to the output.
-#                    - Added an option that just outputs the default repo used
-#                    - Added a check for the 'home' field in the WP database, 
-#                       and to use the 'siteurl' field instead if the 'home' is
-#                       empty. This is the URL to use for updating the database
-#                       after upgrading.
-# v1.6.1             - Added option to skip the backups
-# v1.6.2    12.01.10 - Fixed an issue with unbound variable for homeurl when not
-#                       found in database. 
-# v1.6.3    12.03.10 - Added the -d flag to supply the database name when the 
-#                       command is run. Works best if used when updating a
-#                       single WP install.
-# v1.6.4    01.18.11 - Add steps to secure WordPress, and switch to turn off.
+#                           Change log                                         #
+#                                                                              #
+# See ChageLog at https://github.com/mossiso/SVN-Multiple-WordPress-Updater/   #
 #------------------------------------------------------------------------------#
 
 set -e # End the script if any statement returns a non-true return value
@@ -122,11 +35,13 @@ white='\E[1;37;40m'
 reset=`tput sgr0`
 
 # Constants
-CURDATE="svnreport-`date +%F`"
+CURDATE=`date +%F`
+SVNREPORT="svnreport-$CURDATE"
 # http://codex.WordPress.org/Installing/Updating_WordPress_with_Subversion
 OLDBASE="http://svn.automattic.com/wordpress"
 SVNBASE="http://core.svn.wordpress.org"
 TMPFILE=`mktemp` || exit 1
+CONTENTBK=".wp-content-backup.zip"
 
 
 USAGE='
@@ -146,7 +61,10 @@ HELPTEXT='wpupdate '$VERSION' by Ammon Shepherd
 OPTIONS:
  -b     use the branches, can not be used with -t (tags) option
 
- -d     supply the database name to use. Use only when updating a single install
+ -c     use the wp-config file to grab the database user name and password
+
+ -d     supply the database name to use. Use only when updating a single
+        install
 
  -f     path to a file containing a list of paths to WordPress installs, can
         not be used with -i (single install) option. File must consist of full
@@ -168,8 +86,8 @@ OPTIONS:
 
  -p     turn off the steps to secure and protect WP. Steps include removing
         the install.php file, adding rules to the htaccess file to protect
-        the wp-config.php file, the .svn directories, and the wp-content/uploads 
-        directory. These steps are done by default.
+        the wp-config.php file, the .svn directories, and the
+        wp-content/uploads directory. These steps are done by default.
 
  -v     outputs version information and exits
 
@@ -213,6 +131,7 @@ THINGS TO KNOW:
 
 # Set variables of unused options
 BRANCH=''
+CONFIG=''
 DBNAME=''
 FILENAME=''
 SINGLE=''
@@ -223,12 +142,44 @@ NEWURL=''
 TAGS=''
 SVNOPT=''
 SKIPFIX=''
+SKIPSECURE=''
+
+
+###################       FUNCTIONS     ########################################
+# Get the MySQL user and password
+function ask_db_account() {
+    # Get the MySQL user/pass but don't show it on the CLI
+    echo -n "Enter a MySQL user with access to all databases: "
+    read -s sqluser
+    echo
+    echo -n "Enter the MySQL pass: "
+    read -s sqlpass
+    echo
+}
+
+# Get a valued from the wp-config.php file.
+# Usage: Call the function and set the result to a variable. Give the function
+# the Variable in the wp-config.php file to get, ex: 
+# DBUSER=$(get_config_value DBUSER) # or DBUSER=`get_config_value DBUSER`
+function get_config_value() {
+    # help on BASH function return values from here:
+    # http://www.linuxjournal.com/content/return-values-bash-functions
+    value=''
+    if [[ -n "$1" && -n "$2" ]]; then
+        value=`grep "${1}" ${2}/wp-config.php | sed -r -e "s/^[^']+'.*', '([^']+)'.*/\1/"`
+        echo $value
+    fi
+}
+
+
+#####################    END FUNCTIONS        ##################################
 
 
 # Get the options
-while getopts "bd:f:hi:kno:rs:tuvwx" options; do
+while getopts "bcd:f:hi:kno:prs:tuvwx" options; do
     case $options in
         b ) BRANCH="branches";;
+        c ) CONFIG='true';;
         d ) DBNAME="$OPTARG";;
         f ) FILENAME="$OPTARG";;
         h ) echo "$HELPTEXT"
@@ -237,6 +188,7 @@ while getopts "bd:f:hi:kno:rs:tuvwx" options; do
         k ) NOBACKUP='true';;
         n ) NOSUDO='true';;
         o ) REPORTPATH="$OPTARG";;
+        p ) SKIPSECURE="true";;
         r ) echo "$SVNBASE"
             exit 0;;
         s ) NEWURL="$OPTARG";;
@@ -266,8 +218,9 @@ if [ -z $1 ]; then
     echo
     exit 0;
 elif [ -n $1 ]; then
-    # Get the array containing the full paths to the Wordpress installs to update from a file.
-    # tip from http://www.linuxquestions.org/questions/showthread.php?p=2867155#post2867155
+    # Get the array containing the full paths to the Wordpress installs to
+    # update from a file.  tip from
+    # http://www.linuxquestions.org/questions/showthread.php?p=2867155#post2867155
 
     exec 6<&0
 
@@ -326,13 +279,9 @@ elif [ -n $1 ]; then
 
     exec 0<&6 6<&-
 
-    # Get the MySQL user/pass but don't show it on the CLI
-    echo -n "Enter a MySQL user with access to all databases: "
-    read -s sqluser
-    echo
-    echo -n "Enter the MySQL pass: "
-    read -s sqlpass
-    echo
+    if [[ -z "${CONFIG-}" ]]; then
+        ask_db_account
+    fi
 
 
     # Loop through all of the paths from the file, or the current dir
@@ -371,17 +320,28 @@ elif [ -n $1 ]; then
         #Get the base folder name of the install - the name of the website.
         sitename=`pwd | sed -r -e "s/\//-/g"`
 
-        # Get the owner of the wp-content folder
-        siteowner=`ls -lad wp-content | cut -f3 -d" "`
+        # Get the server owner and group
+        ownr=`ls -lad ${path}/wp-content/themes | cut -f3 -d" "`
+        grp=`ls -lad ${path}/wp-content/themes | cut -f4 -d" "`
 
         # Get information from the wp-config.php file in order to make
         #   a backup copy 
             # Get the database name
-            # If the 'd' flag was used, set that value as the database name
         if [[ -z "${DBNAME-}" ]]; then
-            db_name=`grep "DB_NAME" wp-config.php | sed -r -e "s/^[^']+'.*', '([^']+)'.*/\1/"`
+            db_name=`get_config_value DB_NAME $path`
+            #db_name=`grep "DB_NAME" wp-config.php | sed -r -e "s/^[^']+'.*', '([^']+)'.*/\1/"`
         else
+            # If the 'd' flag was used, set that value as the database name
             db_name=$DBNAME
+        fi
+
+            # If the 'c' flag is used, grab the db user and pass from the config file
+        if [[ -n "${CONFIG-}" ]]; then
+            sqluser=`get_config_value DB_USER $path`
+            sqlpass=`get_config_value DB_PASSWORD $path`
+            db_name=`get_config_value DB_NAME $path`
+            #sqluser=`grep "DB_USER" wp-config.php | sed -r -e "s/^[^']+'.*', '([^']+)'.*/\1/"`
+            #sqlpass=`grep "DB_PASSWORD" wp-config.php | sed -r -e "s/^[^']+'.*', '([^']+)'.*/\1/"`
         fi
 
             # Get the table prefix
@@ -416,36 +376,31 @@ elif [ -n $1 ]; then
             done
             # Use mysqldump to make an sql file of the correct tables
             if [[ 'true' == $NOSUDO ]]; then
-                mysqldump -u$sqluser -p$sqlpass --opt $db_name $tables > $path/.${db_name}_${tb_prefix}BACKUP.sql
+                mysqldump -u$sqluser -p'$sqlpass' --single-transaction --opt $db_name $tables > $path/.${db_name}_${tb_prefix}BACKUP-${CURDATE}.sql
+                zip -q .${db_name}_${tb_prefix}BACKUP-${CURDATE}.sql.zip .${db_name}_${tb_prefix}BACKUP-${CURDATE}.sql
+                rm -f .${db_name}_${tb_prefix}BACKUP-${CURDATE}.sql 
             else
-                sudo su - $siteowner -c "mysqldump -u $sqluser -p$sqlpass --opt $db_name $tables > $path/.${db_name}_${tb_prefix}BACKUP.sql"
+                sudo su - -c "mysqldump -u $sqluser -p'$sqlpass' --single-transaction --opt $db_name $tables > $path/.${db_name}_${tb_prefix}BACKUP-${CURDATE}.sql"
+                sudo zip -q .${db_name}_${tb_prefix}BACKUP-${CURDATE}.sql.zip .${db_name}_${tb_prefix}BACKUP-${CURDATE}.sql
+                sudo rm -f .${db_name}_${tb_prefix}BACKUP-${CURDATE}.sql 
             fi
 
-            # Check the size of the wp-content directory. If it is over 100MB
-            #   then do not make a copy.
-            dirSize=( $(du -s 'wp-content' ) )
-            if (( 100000 <= $dirSize )); then
-                size=( $(du -hs 'wp-content' ))
-                echo "Directory 'wp-content' is too large ($size). Not making backup."
+            echo "Creating backup of 'wp-content'..."
+            # Make the backup copy of the wp-content folder
+            #   zip -q flag: quietly, don't output info
+            #   zip -u flag: Replace (update) an existing entry in the zip
+            #   archive only if it has been modified more recently than the
+            #   version already in the zip archive.
+            #   zip -r flag: recursively
+            if [[ 'true' == $NOSUDO ]]; then
+                zip -qur ${path}/${CONTENTBK} ${path}/wp-content
             else
-                echo "Creating backup of 'wp-content'..."
-                # Delete the old backup copy of wp-content if it exists
-                if [ -d .wp-content-backup ]; then
-                    if [[ 'true' == $NOSUDO ]]; then
-                        rm -rf .wp-content-backup
-                    else
-                        sudo rm -rf .wp-content-backup
-                    fi
-                fi
-                # Make the backup copy of the wp-content folder
-                if [[ 'true' == $NOSUDO ]]; then
-                    cp -a $path/wp-content/ $path/.wp-content-backup
-                else
-                    sudo cp -a $path/wp-content/ $path/.wp-content-backup
-                fi
+                sudo zip -qur ${path}/${CONTENTBK} ${path}/wp-content
             fi
+
         fi # end of backing up 
 #COMMENT4
+
 
         ################################################################
         #                                                              #
@@ -483,6 +438,7 @@ elif [ -n $1 ]; then
             userepo=$SVNBASE
         fi
 #COMMENT3
+
 
         ################################################################
         #                                                              #
@@ -545,7 +501,7 @@ elif [ -n $1 ]; then
         echo -e "${yellow}Running svn ${reset}on $path ..."
 
         # Set the variable for the path and name of the report file
-        SVNREPORTFILE="$REPORTPATH/wpupdate-reports/$CURDATE$sitename"
+        SVNREPORTFILE="$REPORTPATH/wpupdate-reports/${SVNREPORT}${sitename}"
         echo -e "Saving output to $white $SVNREPORTFILE $reset..."
 
         # Open a file descriptor to put all svn output to a file.
@@ -565,6 +521,7 @@ elif [ -n $1 ]; then
         fi
 #COMMENT2
 
+
         ################################################################
         #                                                              #
         #                      FIX PERMISSIONS                         #
@@ -580,29 +537,34 @@ elif [ -n $1 ]; then
         else
             echo "Fixing permissions ..."
             if [[ 'true' == $NOSUDO ]]; then
-                find $path -iname "*wp-*" -exec chown -R $siteowner '{}' \;
-                find $path -iname ".htaccess" -exec chown $siteowner '{}' \;
-                find $path -iname "*.sql" -exec chown $siteowner '{}' \;
-                find $path -iname "license.txt" -exec chown $siteowner '{}' \;
-                find $path -iname "index.php" -exec chown $siteowner '{}' \;
-                find $path -iname "readme.html" -exec chown $siteowner '{}' \;
-                find $path -iname "xmlrpc.php" -exec chown $siteowner '{}' \;
+                find $path -iname "*wp-*" -exec chown -R $ownr '{}' \;
+                find $path -iname ".htaccess" -exec chown $ownr '{}' \;
+                find $path -iname "*.sql" -exec chown $ownr '{}' \;
+                find $path -iname "license.txt" -exec chown $ownr '{}' \;
+                find $path -iname "index.php" -exec chown $ownr '{}' \;
+                find $path -iname "readme.html" -exec chown $ownr '{}' \;
+                find $path -iname "xmlrpc.php" -exec chown $ownr '{}' \;
                 find $path -type d -iname "*wp-*" -exec chmod ug=rwx,g+s,o=rx '{}' \;
                 find $path -type f -iname "*wp-*" -exec chmod 664 '{}' \;
+                chown $ownr:$grp ${path}/${CONTENTBK}
+                chown $ownr:$grp .${db_name}_${tb_prefix}BACKUP-${CURDATE}.sql.zip
             else
-                sudo find $path -iname "*wp-*" -exec chown -R $siteowner '{}' \;
-                sudo find $path -iname ".htaccess" -exec chown $siteowner '{}' \;
-                sudo find $path -iname "*.sql" -exec chown $siteowner '{}' \;
-                sudo find $path -iname "license.txt" -exec chown $siteowner '{}' \;
-                sudo find $path -iname "index.php" -exec chown $siteowner '{}' \;
-                sudo find $path -iname "readme.html" -exec chown $siteowner '{}' \;
-                sudo find $path -iname "xmlrpc.php" -exec chown $siteowner '{}' \;
+                sudo find $path -iname "*wp-*" -exec chown -R $ownr '{}' \;
+                sudo find $path -iname ".htaccess" -exec chown $ownr '{}' \;
+                sudo find $path -iname "*.sql" -exec chown $ownr '{}' \;
+                sudo find $path -iname "license.txt" -exec chown $ownr '{}' \;
+                sudo find $path -iname "index.php" -exec chown $ownr '{}' \;
+                sudo find $path -iname "readme.html" -exec chown $ownr '{}' \;
+                sudo find $path -iname "xmlrpc.php" -exec chown $ownr '{}' \;
                 sudo find $path -type d -iname "*wp-*" -exec chmod ug=rwx,g+s,o=rx '{}' \;
                 sudo find $path -type f -iname "*wp-*" -exec chmod 664 '{}' \;
+                sudo chown $ownr:$grp ${path}/${CONTENTBK}
+                sudo chown $ownr:$grp .${db_name}_${tb_prefix}BACKUP-${CURDATE}.sql.zip
             fi
         fi
 
 #COMMENT1
+
 
         ################################################################
         #                                                              #
@@ -643,22 +605,116 @@ elif [ -n $1 ]; then
             echo
         fi
 #COMMENT0
+
+
         ################################################################
         #                                                              #
         #                    Secure WP install                         #
         #                                                              #
         ################################################################
 ###:<<COMMENT01
-        # Remove the install.php file
-        if [ -f $path/wp-admin/install.php ]; then
-            if [[ 'true' == $NOSUDO ]]; then
-                rm -f $path/wp-admin/install.php
-            else
-                sudo rm -f $path/wp-admin/install.php
+        if [[ 'true' == $SKIPSECURE ]]; then
+            echo "Skip security fixes..."
+        else
+            # Remove the install.php file
+            if [ -f $path/wp-admin/install.php ]; then
+                echo "Removing install.php file"
+                if [[ 'true' == $NOSUDO ]]; then
+                    rm -f $path/wp-admin/install.php
+                else
+                    sudo rm -f $path/wp-admin/install.php
+                fi
             fi
-        fi
 
-        # Check .htaccess file and if protecting wp-config.php, .svn and wp-content/uploads
+            uploads="${path}/wp-content/uploads/"
+            if [ -d $uploads ]; then
+                echo "Fixing permissions for 'uploads' directory and checking .htaccess file"
+                ########################################################################
+                #####  Fix the permissions
+
+                # Test for setfacl program, then remove all ACL's. We shouldn't need them.
+                is_setfacl=`which setfacl`
+                if [[ -n "$is_setfacl" ]]; then
+                    sudo find $uploads -type d -exec setfacl -b '{}' \;
+                    sudo find $uploads -type f -exec setfacl -b '{}' \;
+                fi
+
+                # Change permissions of files (664) and directories (775, group sticky
+                # bit)
+                sudo find $uploads -type d -exec chmod ug=rwx,g+s,o=rx '{}' \;
+                sudo find $uploads -type f -exec chmod 664 '{}' \;
+
+                # Now change the uploads group recursively to be webwrite
+                sudo chgrp webwrite -R $uploads
+
+
+                ########################################################################
+                #####  HTACCESS STUFF
+
+                # There should be a .htaccess file in the wp-content/uploads/ folder to
+                # limit the types of files that can be uploaded and downloaded. Check
+                # for the .htaccess file, create it if need be, and fix the
+                # permissions.
+
+                htfile="${uploads}.htaccess"
+                htcontent='
+## Only allow the following file formats to be accessed
+Order Allow,Deny
+Deny from all
+<Files ~ "\.(jpeg|jpg|png|gif|gz|pdf)$">
+Allow from all
+</Files>
+
+RewriteCond %{HTTP:Content-Disposition} \.php [NC]
+RewriteCond %{HTTP:Content-Type} image/.+ [NC]
+RewriteRule .* - [F,NS,L]
+'
+
+                # If there is an .htaccess file already
+                if [[ -a "$htfile" ]]; then
+                    allowed=`cat $htfile | grep "jpeg\|jpg\|png\|gif"`
+                    # And if there is NOT a line with "jpeg|jpg|png|gif" in it
+                    # already
+                    if [[ -z "$allowed" ]]; then
+                        # Then show the current contents and ask if it should
+                        # be modified
+                        echo 
+                        echo -e "$green $htfile $reset"
+                        cat $htfile
+                        echo 
+                        echo "Change file?"
+                        echo -e "${red}[ Enter ]:  no changes to file${reset}"
+                        echo -e "      ${yellow}[ a ]:  append to end of file${reset}"
+                        echo -e "      ${blue}[ w ]:  write over file${reset}"
+                        read changefile
+                        if [[ "w" == "$changefile" ]]; then
+                            sudo echo "$htcontent" > $htfile
+                        elif [[ "a" == "$changefile" ]]; then
+                            sudo echo "$htcontent" >> $htfile
+                        fi
+                    else
+                        echo -e "      ${green}.htaccess file looks fine.${reset}"
+                    fi
+
+                else
+                    echo
+                    echo -e "$reset Created .htaccess file"
+                    sudo echo "$htcontent" > $htfile
+                fi
+
+                # Change the owner/group of .htaccess file
+
+                sudo chown ${ownr}:${grp} $htfile
+
+
+            fi # end if uploads dir exists
+
+
+            # Check if .htaccess file is protecting wp-config.php and .svn
+            # directories
+
+
+        fi # end if skip secure
 
 #COMMENT01
 
