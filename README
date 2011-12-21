@@ -1,4 +1,4 @@
-wpupdate 1.6.4  by Ammon Shepherd
+wpupdate 1.6.6  by Ammon Shepherd
 
 Usage: wpupdate [OPTIONS]... [WP VERSION NUMBER]
 Switch or update the WordPress install(s) to the WP VERSION NUMBER.
