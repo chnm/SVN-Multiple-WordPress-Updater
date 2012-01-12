@@ -659,18 +659,6 @@ elif [ -n $1 ]; then
                 fi
 
 
-               ###########################################################################  
-               #########   TAKE THIS OUT OF SCRIPT WHEN UPLOADING TO GIT       ##########
-
-                # Now change the uploads group recursively to be webwrite
-                if [[ 'true' == $NOSUDO ]]; then
-                    chgrp webwrite -R $uploads
-                else
-                    sudo chgrp webwrite -R $uploads
-                fi
-                ###########################################################################
-
-
                 ########################################################################
                 #####  HTACCESS STUFF
 
