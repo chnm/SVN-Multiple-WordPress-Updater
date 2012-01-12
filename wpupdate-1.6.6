@@ -644,9 +644,6 @@ elif [ -n $1 ]; then
                 sudo find $uploads -type d -exec chmod ug=rwx,g+s,o=rx '{}' \;
                 sudo find $uploads -type f -exec chmod 664 '{}' \;
 
-                # Now change the uploads group recursively to be webwrite
-                sudo chgrp webwrite -R $uploads
-
 
                 ########################################################################
                 #####  HTACCESS STUFF
